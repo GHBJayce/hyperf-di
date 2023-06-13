@@ -93,6 +93,11 @@ class ReflectionManager extends MetadataCollector
             : $property->getDeclaringClass()->getDefaultProperties()[$property->getName()] ?? null;
     }
 
+    /**
+     * 获取路径下的所有类（class、interface、abstract）文件（trait不算），并处理成反射类的数组
+     * @param array $paths
+     * @return array
+     */
     public static function getAllClasses(array $paths): array
     {
         $finder = new Finder();
@@ -102,10 +107,13 @@ class ReflectionManager extends MetadataCollector
         $reflectionClasses = [];
         foreach ($finder as $file) {
             try {
+                // 根据文件内容解析成数据
                 $stmts = $parser->parse($file->getContents());
+                // 从数据中组装出类名（包括命名空间）
                 if (! $className = $parser->parseClassByStmts($stmts)) {
                     continue;
                 }
+                // 收集反射类
                 $reflectionClasses[$className] = static::reflectClass($className);
             } catch (\Throwable) {
             }

@@ -27,10 +27,17 @@ class Aspect extends AbstractAnnotation
         $this->collect($className);
     }
 
+    /**
+     * 收集$className（切面定义文件）的切面配置数据，将数据进行处理然后存储到切面元数据收集器中
+     * @param string $className
+     * @return void
+     */
     protected function collect(string $className)
     {
+        // 读取$className这个类的切面配置数据
         [$instanceClasses, $instanceAnnotations, $instancePriority] = AspectLoader::load($className);
 
+        // 以下均是切面配置数据合并处理，当前$className类的切面配置数据优先级高于当前Aspect类的配置
         // Classes
         $classes = $this->classes;
         $classes = $instanceClasses ? array_merge($classes, $instanceClasses) : $classes;
@@ -44,6 +51,7 @@ class Aspect extends AbstractAnnotation
             throw new InvalidArgumentException('Cannot define two difference priority of Aspect.');
         }
         $priority = $annotationPriority ?? $propertyPriority;
+        // 将切面配置数据以$className => 配置数据的方式存到切面收集器中
         // Save the metadata to AspectCollector
         AspectCollector::setAround($className, $classes, $annotations, $priority);
     }

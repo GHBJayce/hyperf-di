@@ -36,10 +36,12 @@ class PcntlScanHandler implements ScanHandlerInterface
             throw new Exception('The process fork failed');
         }
         if ($pid) {
-            pcntl_wait($status);
+            // 父进程
+            pcntl_wait($status); // 挂起父进程的执行，进入阻塞状态，直到子进程退出或被信号中断再继续执行父进程，同时防止僵尸子进程
             return new Scanned(true);
         }
 
+        // 子进程
         return new Scanned(false);
     }
 }

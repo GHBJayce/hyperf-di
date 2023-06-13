@@ -32,6 +32,13 @@ class Scanner
         $this->filesystem = new Filesystem();
     }
 
+    /**
+     * 收集类文件中的注解（类注解、方法注解、属性注解）交由对应的注解收集器处理
+     * 相关文档：https://www.php.net/manual/zh/language.attributes.php
+     * @param AnnotationReader $reader
+     * @param ReflectionClass $reflection
+     * @return void
+     */
     public function collect(AnnotationReader $reader, ReflectionClass $reflection)
     {
         $className = $reflection->getName();
@@ -41,9 +48,11 @@ class Scanner
                 return;
             }
         }
+        // 通过PHP8.0特性对反射类中的注解，对该注解对应的收集器类进行实例化，例如：\Hyperf\Di\Annotation\Aspect
         // Parse class annotations
         $classAnnotations = $reader->getClassAnnotations($reflection);
         if (! empty($classAnnotations)) {
+            // 注解收集器类对$className这个类文件做类数据搜集处理
             foreach ($classAnnotations as $classAnnotation) {
                 if ($classAnnotation instanceof AnnotationInterface) {
                     $classAnnotation->collectClass($className);
@@ -53,8 +62,10 @@ class Scanner
         // Parse properties annotations
         $properties = $reflection->getProperties();
         foreach ($properties as $property) {
+            // 对反射类中的所有属性（不管什么访问类型）的注解收集器类进行实例化
             $propertyAnnotations = $reader->getPropertyAnnotations($property);
             if (! empty($propertyAnnotations)) {
+                // 注解收集器类对$className这个类文件做属性数据搜集处理
                 foreach ($propertyAnnotations as $propertyAnnotation) {
                     if ($propertyAnnotation instanceof AnnotationInterface) {
                         $propertyAnnotation->collectProperty($className, $property->getName());
@@ -65,8 +76,10 @@ class Scanner
         // Parse methods annotations
         $methods = $reflection->getMethods();
         foreach ($methods as $method) {
+            // 对反射类中的所有方法的注解收集器类进行实例化
             $methodAnnotations = $reader->getMethodAnnotations($method);
             if (! empty($methodAnnotations)) {
+                // 注解收集器类对$className这个类文件做方法数据搜集处理
                 foreach ($methodAnnotations as $methodAnnotation) {
                     if ($methodAnnotation instanceof AnnotationInterface) {
                         $methodAnnotation->collectMethod($className, $method->getName());
@@ -78,43 +91,61 @@ class Scanner
         unset($reflection, $classAnnotations, $properties, $methods);
     }
 
+    /**
+     * @param array $classMap composer的ClassMap
+     * @param string $proxyDir
+     * @return array
+     * @throws DirectoryNotExistException
+     */
     public function scan(array $classMap = [], string $proxyDir = ''): array
     {
+        // 需要扫描注解文件的目录
         $paths = $this->scanConfig->getPaths();
+        // 扫描注解文件时的注解数据收集器
         $collectors = $this->scanConfig->getCollectors();
         if (! $paths) {
             return [];
         }
 
+        // 文件存在且修改过且启用代理缓存，直接解析文件内的数据返回
         $lastCacheModified = file_exists($this->path) ? $this->filesystem->lastModified($this->path) : 0;
         if ($lastCacheModified > 0 && $this->scanConfig->isCacheable()) {
             return $this->deserializeCachedScanData($collectors);
         }
 
+        // 当handler为\Hyperf\Di\ScanHandler\PcntlScanHandler
         $scanned = $this->handler->scan();
         if ($scanned->isScanned()) {
+            // 父进程进到该逻辑
             return $this->deserializeCachedScanData($collectors);
         }
 
+        // 以下则是子进程要做的事情
         $this->deserializeCachedScanData($collectors);
 
         $annotationReader = new AnnotationReader($this->scanConfig->getIgnoreAnnotations());
 
+        // 检查路径是否存在
         $paths = $this->normalizeDir($paths);
 
+        // 获取路径下的所有类（class、interface、abstract）文件（trait不算），处理成反射类数组，key是类的命名空间，value是它的反射类
         $classes = ReflectionManager::getAllClasses($paths);
 
+        // 从classes.cache缓存文件中清理掉本次已经去掉的类，并将本次扫描结果存进classes.cache文件中
         $this->clearRemovedClasses($collectors, $classes);
 
+        // 类命名空间 => 类文件的存储位置（/xxx/xxx/xxx.php）
         $reflectionClassMap = [];
         foreach ($classes as $className => $reflectionClass) {
             $reflectionClassMap[$className] = $reflectionClass->getFileName();
             if ($this->filesystem->lastModified($reflectionClass->getFileName()) >= $lastCacheModified) {
+                // 从注解收集器中剔除掉扫出来的类
                 /** @var MetadataCollector $collector */
                 foreach ($collectors as $collector) {
                     $collector::clear($className);
                 }
 
+                // 收集类文件中的注解，并交由对应的注解收集器进行处理
                 $this->collect($annotationReader, $reflectionClass);
             }
         }
@@ -175,7 +206,8 @@ class Scanner
     }
 
     /**
-     * @param ReflectionClass[] $reflections
+     * 从classes.cache缓存文件中清理不要的类
+     * @param ReflectionClass[] $reflections annotations.scan.path目录下的所有类文件的反射类数组
      */
     protected function clearRemovedClasses(array $collectors, array $reflections): void
     {
@@ -187,10 +219,13 @@ class Scanner
             $data = unserialize($this->filesystem->get($path));
         }
 
+        // 将annotations.scan.path目录下的所有类（类名）写进上面的classes.cache文件中
         $this->putCache($path, serialize($classes));
 
+        // 找出要删除的类（本次扫出的类与classes.cache中的所有类进行对比）
         $removed = array_diff($data, $classes);
 
+        // 从注解搜集器中剔除这些类
         foreach ($removed as $class) {
             /** @var MetadataCollector $collector */
             foreach ($collectors as $collector) {

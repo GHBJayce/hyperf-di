@@ -56,6 +56,11 @@ class Ast
         return $this->printer->prettyPrintFile($modifiedStmts);
     }
 
+    /**
+     * 从stmts结构中取出命名空间+类名
+     * @param array $stmts
+     * @return string
+     */
     public function parseClassByStmts(array $stmts): string
     {
         $namespace = $className = '';

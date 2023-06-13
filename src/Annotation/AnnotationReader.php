@@ -80,6 +80,12 @@ class AnnotationReader
         return null;
     }
 
+    /**
+     * 对注解进行实例化处理
+     * @param Reflector $reflection
+     * @return array
+     * @throws NotFoundException
+     */
     public function getAttributes(Reflector $reflection): array
     {
         $result = [];
@@ -115,6 +121,7 @@ class AnnotationReader
                 }
                 throw new NotFoundException($message);
             }
+            // 通过增加注解表示，例如：#[Attribute(Attribute::TARGET_CLASS)]，才能将得到的注解字符串处理成实例化的类
             $result[] = $attribute->newInstance();
         }
         return $result;

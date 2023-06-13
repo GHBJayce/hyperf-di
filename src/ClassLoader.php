@@ -45,6 +45,7 @@ class ClassLoader
             static::loadDotenv();
         }
 
+        // 主要从config/config.php、config/autoload/xxx.php、composer.lock中收集annotation.scan和dependencies的配置
         // Scan by ScanConfig to generate the reflection class map
         $config = ScanConfig::instance($configDir);
         // $config->getClassMap()是什么内容？
