@@ -62,7 +62,7 @@ class ClassLoader
         $scanner = new Scanner($config, $handler);
         // 覆盖成代理类的文件路径
         $composerLoader->addClassMap(
-            // 扫描需要生成代理类的文件，得到一个代理类
+            // 扫描composer中的classMap，找出要代理的类文件，并处理成：类名 => 代理文件存放位置的格式
             $scanner->scan($composerLoader->getClassMap(), $proxyFileDirPath)
         );
 

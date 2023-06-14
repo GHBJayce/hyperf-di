@@ -94,7 +94,7 @@ class Scanner
     /**
      * @param array $classMap composer的ClassMap
      * @param string $proxyDir
-     * @return array
+     * @return array 类名 => 代理类文件存放位置
      * @throws DirectoryNotExistException
      */
     public function scan(array $classMap = [], string $proxyDir = ''): array
@@ -150,6 +150,7 @@ class Scanner
             }
         }
 
+        // 从config/autoload/aspects.php > config/config.php > composer.lock三个地方读取切面配置并加载到切面收集器中，会生成runtime/container/aspects.cache文件
         $this->loadAspects($lastCacheModified);
 
         $data = [];
@@ -160,6 +161,7 @@ class Scanner
 
         // Get the class map of Composer loader
         $classMap = array_merge($reflectionClassMap, $classMap);
+        // 从composer中的classMap中找出需要代理的类，并生成代理类文件和runtime/container/scan.cache缓存文件
         $proxyManager = new ProxyManager($classMap, $proxyDir);
         $proxies = $proxyManager->getProxies();
         $aspectClasses = $proxyManager->getAspectClasses();
@@ -194,6 +196,7 @@ class Scanner
             return [];
         }
 
+        // $data是多个收集器（一维数组）、$proxies是类名（含命名空间） => 代理文件存放位置
         [$data, $proxies] = unserialize(file_get_contents($this->path));
         foreach ($data as $collector => $deserialized) {
             /** @var MetadataCollector $collector */
@@ -253,6 +256,7 @@ class Scanner
             return;
         }
 
+        // 读取切面配置
         $aspectsPath = $configDir . '/autoload/aspects.php';
         $basePath = $configDir . '/config.php';
         $aspects = file_exists($aspectsPath) ? include $aspectsPath : [];
@@ -261,6 +265,7 @@ class Scanner
         if (class_exists(ProviderConfig::class)) {
             $providerConfig = ProviderConfig::load();
         }
+        // 切面配置默认值处理
         if (! isset($aspects) || ! is_array($aspects)) {
             $aspects = [];
         }
@@ -270,8 +275,10 @@ class Scanner
         if (! isset($providerConfig['aspects']) || ! is_array($providerConfig['aspects'])) {
             $providerConfig['aspects'] = [];
         }
+        // 多个切面配置合并，优先级：config/autoload/aspects.php > config/config.php > composer.lock
         $aspects = array_merge($providerConfig['aspects'], $baseConfig['aspects'], $aspects);
 
+        // 对比/runtime/container/aspects.cache文件得出要删除的和新增的切面
         [$removed, $changed] = $this->getChangedAspects($aspects, $lastCacheModified);
         // When the aspect removed from config, it should be removed from AspectCollector.
         foreach ($removed as $aspect) {
@@ -287,10 +294,12 @@ class Scanner
                 $priority = (int) $value;
             }
 
+            // 跳过不是新增的切面
             if (! in_array($aspect, $changed)) {
                 continue;
             }
 
+            // 读取切面定义文件中的切面配置数据，另一个被调用的地方：\Hyperf\Di\Annotation\Aspect::collect
             [$instanceClasses, $instanceAnnotations, $instancePriority] = AspectLoader::load($aspect);
 
             $classes = $instanceClasses ?: [];
@@ -303,6 +312,13 @@ class Scanner
         }
     }
 
+    /**
+     * 对比aspects.cache得出要移除的和新增的切面集合
+     * @param array $aspects
+     * @param int $lastCacheModified
+     * @return array
+     * @throws \Hyperf\Support\Filesystem\FileNotFoundException
+     */
     protected function getChangedAspects(array $aspects, int $lastCacheModified): array
     {
         $path = BASE_PATH . '/runtime/container/aspects.cache';

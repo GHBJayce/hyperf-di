@@ -22,6 +22,7 @@ class InjectAspect extends AbstractAspect
 
     public function process(ProceedingJoinPoint $proceedingJoinPoint)
     {
+        // 正如下面注释所说，仅仅是为了能够生成代理文件而必须要建立该切面，为什么一定要让注入生成代理文件，不生成行不行？
         // Do nothing, just to mark the class should be generated to the proxy classes.
         return $proceedingJoinPoint->process();
     }

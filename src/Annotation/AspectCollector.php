@@ -19,6 +19,13 @@ class AspectCollector extends MetadataCollector
 
     protected static array $aspectRules = [];
 
+    /**
+     * @param string $aspect 切面定义类
+     * @param array $classes 要切入的类
+     * @param array $annotations 切入注解对应的注解搜集器
+     * @param int|null $priority
+     * @return void
+     */
     public static function setAround(string $aspect, array $classes, array $annotations, ?int $priority = null): void
     {
         if (! is_int($priority)) {
@@ -28,6 +35,7 @@ class AspectCollector extends MetadataCollector
             if (static::has($key)) {
                 $value = array_merge(static::get($key, []), $value);
             }
+            // 这里的set说明一下，"classes.Hyperf\xxx\Aspect"这种key会被处理成['classes']['Hyperf\xxx\Aspect']的形式，包括has、get也是
             static::set($key, $value);
         };
         $setter('classes.' . $aspect, $classes);
